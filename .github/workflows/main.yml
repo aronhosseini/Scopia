@@ -1,0 +1,51 @@
+name: Build Scopia VST3 (Windows)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Fetch JUCE if missing
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "JUCE/CMakeLists.txt")) {
+            git clone --depth 1 --branch 7.0.7 https://github.com/juce-framework/JUCE.git JUCE
+          }
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DJUCE_MODULES_PATH=${{ github.workspace }}/JUCE/modules
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Build installer (NSIS)
+        shell: pwsh
+        run: |
+          if (Get-Command makensis -ErrorAction SilentlyContinue) {
+            makensis installers/windows/Scopia.nsis
+          } else {
+            Write-Host "NSIS not available; skipping installer build"
+          }
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scopia-VST3
+          path: build/Scopia_artefacts/Release/VST3/
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scopia-Installer
+          path: Scopia-Setup.exe
+          if-no-files-found: ignore
